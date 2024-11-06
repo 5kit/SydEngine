@@ -63,9 +63,9 @@ class Model:
 
     # End Constructor
 
-    # Method to convert world position to screen projection coordinates from a camera angle aswell as 
+    # Method to convert world position to relative screen projection coordinates from a camera angle
     #
-    def getProjection(self, cameraPos:tuple, cameraAngles:tuple, FOV:int, depth:float) -> tuple:
+    def getProjection(self, cameraPos:tuple, cameraAngles:tuple, FOV:int, depth:float) -> list:
 
         points = [] # list to hold all projected points
         for vertex in self.vertices:
@@ -82,11 +82,11 @@ class Model:
             # start by rotating vertex
             vx, vy, vz = vertex.rotate(self.rx, self.ry, self.rz)
 
-            dx = cameraPos[0] - vertex[0]
-            dy = cameraPos[1] - vertex[1]
-            dz = cameraPos[2] - vertex[2]
+            dx = cameraPos[0] - vx
+            dy = cameraPos[1] - vy
+            dz = cameraPos[2] - vz
 
-            Theta1 = (math.atan(dz/dx))
+            Theta1 = math.atan(dz/dx)
             Theta3 = math.atan(dz/dy)
 
             Theta2 = cameraAngles[0] - Theta1
@@ -95,14 +95,59 @@ class Model:
             displayX = depth/math.tan(Theta2)
             displayY = depth/math.tan(Theta4)
 
-            points.append((displayX, displayY))
-        
-        # Send information about 3 points and color to send to the rasterization to draw
-        # Should also 
-        triangles = []
-    
+            # calculate display Z for surface normal calculation
+            displayZ = math.sqrt(dz*dz + dx*dx) * math.cos(Theta2)
+
+            points.append((displayX, displayY, displayZ))
+        # End for
+
+        return self.getFaces(points)
     # End method
-# End Clas
-
-
         
+    # Send information about 3 points and color to send to the rasterization to draw
+    def getFaces(self, points:list) -> list:
+
+        triangles = [] # List decides the triangles that are drawn as well as the order
+        for face in self.faces:
+            # unpack face information into 1 tuple
+            triangle = (points[face[0]], points[face[1]], points[face[2]], face[3])
+
+            # calculate surface normal in Z direction
+            N = CalculateSurfaceNormal(triangle[0], triangle[1], triangle[2])
+            if N[2] < 0:
+                next # skip triangle
+            
+            triangles.append(triangle)
+        # End for
+
+        triangles.sort(key=lambda x: x[2]) # Sort for draw order based on distance from camera
+
+        return triangles
+    # End method
+# End Class
+
+# Function that takes 3 points and returns the normal vector
+def CalculateSurfaceNormal(C1,C2,C3):
+    # calculate vector A
+    A = [
+        C2[0] - C1[0],
+        C2[1] - C1[1],
+        C2[2] - C1[2]
+    ]
+    
+    # calculate vector B
+    B = [
+        C3[0] - C1[0],
+        C3[1] - C1[1],
+        C3[2] - C1[2]
+    ]
+
+    # Apply cross product
+    N = [
+        A[1]*B[2] - A[2]*B[1],
+        A[2]*B[0] - A[0]*B[2],
+        A[0]*B[1] - A[1]*B[0]
+    ]
+
+    return N
+# End function
